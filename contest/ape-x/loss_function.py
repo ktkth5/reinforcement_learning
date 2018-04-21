@@ -3,29 +3,34 @@ import torch.nn as nn
 
 from model import DQN
 
+# clear
 class L2_loss(nn.Module):
 
-    def __init__(self, GAMMA):
+    def __init__(self, sigma):
         super(L2_loss, self).__init__()
-        self.gamma = GAMMA
+        self.sigma = sigma
 
     def forward(self, r, x, y):
         """
-        :param r: reward, Variable(1,)
-        :param x: q action, Variable(batch size, 12, 2)
-        :param y: q target, Variable(batch size, 12, 2)
+        :param r: reward, Variable(batch_size,)
+        :param x: q action, Variable(batch_size, 12, 2)
+        :param y: q target, Variable(batch_size, 12, 2)
         :return: Loss
         """
         batch_size = x.size()[0]
         x = x.view(batch_size, 12, 2)
         y = y.view(batch_size, 12, 2)
+        r = r.unsqueeze(1)
+        r = torch.cat([r,r],dim=1)
+        r = r.unsqueeze(1)
 
-        x = r + x*self.gamma
-        td_loss = torch.sum((x-y)**2, dim=2)
-        td_loss = torch.sum(td_loss, dim=1)
+        y = torch.add(y, self.sigma, r)
+        td_loss = torch.mean((y-x), dim=2)
+        td_loss = torch.mean(td_loss, dim=1)
+        td_loss = torch.mean(td_loss, dim=0)
         # print(float(td_loss))
 
-        return td_loss/2
+        return td_loss/(2)
 
 
 
@@ -44,25 +49,38 @@ if __name__=="__main__":
     learner = DQN()
     actor = DQN()
 
-    learner = learner.cuda(0)
+    for param in actor.parameters():
+        param.requires_grad = False
+
+    cuda = False
+    if torch.cuda.is_available():
+        cuda = True
+        learner = learner.cuda(0)
+        reward = reward.cuda(0)
     optimizer = torch.optim.SGD(learner.parameters(), lr=0.01)
     criterion = L2_loss(0.999)
 
-    reward = reward.cuda(0)
-    for k in range(3):
-        x = learner(d_state_var.cuda(0))
+    learner.train()
+    for k in range(100):
+        if cuda:
+            x = learner(d_state_var.cuda(0))
+        else:
+            x = learner(d_state_var)
         actor.load_state_dict(learner.state_dict())
-        print(x)
-        for i in range(100):
+        # print(x)
+        for i in range(10):
             # state_var = torch.autograd.Variable(torch.randn(1, 3, 40, 40))
             y = actor(state_var)
 
-            y = y.cuda(0)
+            if cuda:
+                y = y.cuda(0)
             loss = criterion(reward, x, y)
-            if i % 30==0:
+            if i==0:
                 print(loss)
             optimizer.zero_grad()
             loss.backward(retain_graph=True)
+            for param in learner.parameters():
+                param.grad.data.clamp_(-1,1)
             optimizer.step()
-        print(float(loss))
-        print(x-y)
+        # print(float(loss))
+        # print(x-y)

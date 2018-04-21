@@ -51,12 +51,21 @@ if __name__=="__main__":
     target = torch.LongTensor([[0],[0],[0],[0],[1],[1],[1],[1],[0],[0],[0],[0]])
     target_var = torch.autograd.Variable(target)
     target_var = target_var.unsqueeze(0)
-    target_var.squeeze_(2)
+    target_var.unsqueeze_(2)
+    target_var = torch.cat((target_var, target_var), dim=2)
+    target_var.squeeze_(3)
 
-    for i in range(1000):
+    loss_f = nn.MSELoss()
+    loss_f = nn.L1Loss()
+
+    for i in range(10):
         action = model(state_var)
         print(action.size())
         print(target_var.size())
-        loss = F.nll_loss(action, target_var)
+        # _, action = action.data.max(2)
+        # print(action.size())
+        target_var = target_var.type(torch.FloatTensor)
+        loss = loss_f(action, target_var)
         optimizer.zero_grad()
+        loss.backward()
         optimizer.step()
