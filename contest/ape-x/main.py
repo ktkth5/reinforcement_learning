@@ -55,6 +55,7 @@ def train():
     eps_threshold = 0.9
     RM = ReplayMemory(1000)
 
+    print("Start Episodes")
     for i_episode in range(100):
         env.reset()
         A_agent = ActorAgent(Learner, args)
@@ -63,6 +64,8 @@ def train():
         state = current_state - last_state
         state_var = torch.autograd.Variable(state)
         for t in count():
+            if t==0:
+                print("episode begin")
             eps_threshold -= 0.000005
             action_q = A_agent.act(state_var, eps_threshold)
             if is_cuda:
