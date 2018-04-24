@@ -17,6 +17,8 @@ class ActorAgent():
 
         self.Learner = learner
         self.Actor = DQN()
+        if torch.cuda.is_available():
+            self.Actor = self.Actor.cuda()
         self.copy_parameter()
         self.position = 0
         self.capacity = args.localcapacity
@@ -60,6 +62,23 @@ class ActorAgent():
 
     def copy_parameter(self):
         self.Actor.load_state_dict(self.Learner.state_dict())
+
+    def reset(self, learner, args):
+        self.args = args
+
+        self.Learner = learner
+        self.Actor = DQN()
+        if torch.cuda.is_available():
+            self.Actor = self.Actor.cuda()
+        self.copy_parameter()
+        self.position = 0
+        self.capacity = args.localcapacity
+
+        self.localbuffer = []
+        # self.expe = namedtuple("self.expe",
+        #                        ["reward","Qvalue","state"])
+
+        self.criterion = L2_loss(self.args.sigma)
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="Agent test")

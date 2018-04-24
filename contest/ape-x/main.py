@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser(description='Run Ape-X on Sonic')
 parser.add_argument("--seed", default=13, type=int)
 parser.add_argument("--epochs", default=10, type=int)
 parser.add_argument("--sigma", default=0.999, type=float)
-parser.add_argument("--localcapacity", default=1000)
+parser.add_argument("--localcapacity", default=500)
 
 is_cuda = False
 if torch.cuda.is_available():
@@ -42,7 +42,6 @@ def train():
 
     env = make(game='SonicTheHedgehog-Genesis', state='LabyrinthZone.Act1')
     # env = retro.make(game='Airstriker-Genesis', state='Level1')
-    Replay_Memory = ReplayMemory(10000)
 
     criterion = L2_loss(0.5)
 
@@ -53,12 +52,12 @@ def train():
     optimizer = optim.SGD(Learner.parameters(), lr=0.01)
 
     eps_threshold = 0.9
-    RM = ReplayMemory(1000)
-
+    RM = ReplayMemory(500)
+    A_agent = ActorAgent(Learner, args)
     print("Start Episodes")
-    for i_episode in range(100):
+    for i_episode in range(1000):
         env.reset()
-        A_agent = ActorAgent(Learner, args)
+        A_agent.reset(Learner, args)
         last_state = get_screen(env)
         current_state = get_screen(env)
         state = current_state - last_state
@@ -69,8 +68,8 @@ def train():
             eps_threshold -= 0.000005
             action_q = A_agent.act(state_var, eps_threshold)
             if is_cuda:
-                action_q_cpu = action_q.cpu()
-                _, action = action_q_cpu.data.max(2)
+                action_q = action_q.cpu()
+                _, action = action_q.data.max(2)
             else:
                 _, action = action_q.data.max(2)
             action_numpy = action.squeeze(0).numpy()
@@ -93,7 +92,7 @@ def train():
                 break
 
             # Optimize Learner model
-            if len(A_agent.localbuffer)%30==0 and len(A_agent.localbuffer)>80:
+            if t%30==0 and len(A_agent.localbuffer)>80:
                 error_batch = RM.priority_sample(30)
                 optimizer.zero_grad()
                 error_batch.backward(retain_graph=True)

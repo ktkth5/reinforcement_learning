@@ -16,6 +16,8 @@ class ReplayMemory(nn.Module):
         if len(self.memory) < self.capacity:
             self.memory.append({"priority":priority, "error":error})
         else:
+            self.memory.pop(0)
+            self.memory.append({"priority":priority, "error":error})
             pass
 
     def priority_sample(self, batch_size):

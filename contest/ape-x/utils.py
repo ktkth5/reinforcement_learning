@@ -31,12 +31,16 @@ def calc_priority_TDerror(Learner, Actor, criterion, A_agent, batch_size):
 
     experience = A_agent.sample(batch_size)
     batch = expe(*zip(*experience))
-    state_batch = torch.cat(batch.state).type(torch.FloatTensor)
+    state_batch = torch.cat(batch.state)
     Actor_qvalue_batch = torch.cat(batch.Qvalue, dim=0).view(batch_size, 12, 2)
     reward_batch = Variable(torch.cat(batch.reward))
 
     Learner_qvalue = Learner(state_batch)
     # Double DQNのロス産出は実装してない
+    if torch.cuda.is_available():
+        state_batch = state_batch.cpu()
+        Actor_qvalue_batch = Actor_qvalue_batch
+        Learner_qvalue = Learner_qvalue.cpu()
     TDerror = criterion(reward_batch, Learner_qvalue, Actor_qvalue_batch)
     priority = torch.abs(TDerror) + epsilon
 
