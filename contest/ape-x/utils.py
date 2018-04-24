@@ -18,9 +18,10 @@ def get_screen(env):
                         T.Resize((40,40), interpolation=Image.CUBIC),
                         T.ToTensor()])
     state = resize(state)
+    state.unsqueeze_(0)
     return state
 
-def calc_priority_TDerror(learner, criterion, A_agent, batch_size):
+def calc_priority_TDerror(Learner, Actor, criterion, A_agent, batch_size):
     epsilon = 0.001
     expe = namedtuple("expe",
                       ["reward", "Qvalue", "state"])
@@ -31,8 +32,9 @@ def calc_priority_TDerror(learner, criterion, A_agent, batch_size):
     Actor_qvalue_batch = torch.cat(batch.Qvalue, dim=0).view(batch_size, 12, 2)
     reward_batch = Variable(torch.cat(batch.reward))
 
-    L_qvalue = learner(state_batch)
-    TDerror = criterion(reward_batch, L_qvalue, Actor_qvalue_batch)
+    Learner_qvalue = Learner(state_batch)
+    # Double DQNのロス産出は実装してない
+    TDerror = criterion(reward_batch, Learner_qvalue, Actor_qvalue_batch)
     priority = torch.abs(TDerror) + epsilon
 
     # print(priority)

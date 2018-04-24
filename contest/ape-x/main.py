@@ -37,38 +37,57 @@ def train():
     Learner = DQN()
 
     env = make(game='SonicTheHedgehog-Genesis', state='LabyrinthZone.Act1')
+    # env = retro.make(game='Airstriker-Genesis', state='Level1')
     Replay_Memory = ReplayMemory(10000)
 
-    criterion = L2_loss(args.sigma)
+    criterion = L2_loss(0.)
     optimizer = optim.SGD(Learner.parameters(), lr=0.01)
 
     eps_threshold = 0.9
+    RM = ReplayMemory(1000)
+
     for i_episode in range(100):
         env.reset()
         A_agent = ActorAgent(Learner, args)
         last_state = get_screen(env)
         current_state = get_screen(env)
         state = current_state - last_state
+        state_var = torch.autograd.Variable(state)
         for t in count():
             eps_threshold -= 0.000005
-            state_var = torch.autograd.Variable(state)
             action_q = A_agent.act(state_var, eps_threshold)
             _, action = action_q.data.max(2)
             action_numpy = action.squeeze(0).numpy()
             # print(list(action_numpy))
             _, reward, done, _ = env.step(action_numpy)
-            A_agent.add_to_buffer(reward, action_q, state_var)
-            if done:
-                break
-            if len(A_agent.localbuffer) > 50:
-                p, error = calc_priority_TDerror(Learner, criterion, A_agent, 3)
-                optimizer.zero_grad()
-                error.backward(retain_graph=True)
-                optimizer.step()
-                print("{0}\t{1}\t{2}".format(i_episode, t, float(error)))
             last_state = current_state
             current_state = get_screen(env)
             state = current_state - last_state
+            state_var = torch.autograd.Variable(state)
+            # 行動語のstateを保存
+            A_agent.add_to_buffer(reward, action_q, state_var)
+
+            # ReplayMemoryに状態保存
+            if len(A_agent.localbuffer)>10:
+                p, error = calc_priority_TDerror(Learner, ActorAgent,
+                                                 criterion, A_agent, 10)
+                RM.push(p,error)
+
+            if done:
+                break
+
+            # Optimize Learner model
+            if len(A_agent.localbuffer)%30==0 and len(A_agent.localbuffer)>80:
+                error_batch = RM.priority_sample(30)
+                optimizer.zero_grad()
+                error_batch.backward(retain_graph=True)
+                optimizer.step()
+                for param in Learner.parameters():
+                    param.grad.data.clamp_(-1, 1)
+                optimizer.step()
+                print("{0}\t{1}\t{2}\t{3}".format(i_episode, t,
+                                                  float(error_batch), reward))
+
 
             env.render()
 

@@ -27,21 +27,22 @@ class ActorAgent():
 
         self.criterion = L2_loss(self.args.sigma)
 
-    def act(self, state_var, eps_threshold):
-        sample = random.random()
-
-        state_var.unsqueeze_(0)
-        # action_q = self.Actor(state_var)
-
-        if sample > eps_threshold:
-            action_q = self.Actor(state_var)
-            # print(type(output.data))
-            return action_q
+    def act(self, state_var, eps_threshold=None):
+        if eps_threshold is None:
+            return self.Actor(state_var)
         else:
-            output = numpy.random.rand(24)
-            output = torch.from_numpy(output).view(1,12, 2)
-            action_q_random = output.type(torch.FloatTensor)
-            return Variable(action_q_random)
+            sample = random.random()
+            # action_q = self.Actor(state_var)
+
+            if sample > eps_threshold:
+                action_q = self.Actor(state_var)
+                # print(type(output.data))
+                return action_q
+            else:
+                output = numpy.random.rand(24)
+                output = torch.from_numpy(output).view(1,12, 2)
+                action_q_random = output.type(torch.FloatTensor)
+                return Variable(action_q_random)
 
     def add_to_buffer(self, reward, action_q, state):
         expe = namedtuple("expe",
