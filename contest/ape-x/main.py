@@ -19,6 +19,10 @@ parser.add_argument("--epochs", default=10, type=int)
 parser.add_argument("--sigma", default=0.999, type=float)
 parser.add_argument("--localcapacity", default=1000)
 
+is_cuda = False
+if torch.cuda.is_available():
+    is_cuda = True
+
 
 def main():
     global args
@@ -40,7 +44,12 @@ def train():
     # env = retro.make(game='Airstriker-Genesis', state='Level1')
     Replay_Memory = ReplayMemory(10000)
 
-    criterion = L2_loss(0.)
+    criterion = L2_loss(0.5)
+
+    if is_cuda:
+        Learner = Learner.cuda()
+        criterion = criterion.cuda()
+
     optimizer = optim.SGD(Learner.parameters(), lr=0.01)
 
     eps_threshold = 0.9
@@ -56,7 +65,11 @@ def train():
         for t in count():
             eps_threshold -= 0.000005
             action_q = A_agent.act(state_var, eps_threshold)
-            _, action = action_q.data.max(2)
+            if is_cuda:
+                action_q_cpu = action_q.cpu()
+                _, action = action_q_cpu.data.max(2)
+            else:
+                _, action = action_q.data.max(2)
             action_numpy = action.squeeze(0).numpy()
             # print(list(action_numpy))
             _, reward, done, _ = env.step(action_numpy)

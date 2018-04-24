@@ -19,6 +19,9 @@ def get_screen(env):
                         T.ToTensor()])
     state = resize(state)
     state.unsqueeze_(0)
+    if torch.cuda.is_available():
+        state = state.cuda()
+
     return state
 
 def calc_priority_TDerror(Learner, Actor, criterion, A_agent, batch_size):

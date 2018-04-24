@@ -24,7 +24,7 @@ class L2_loss(nn.Module):
         r = torch.cat([r,r],dim=1)
         r = r.unsqueeze(1)
 
-        y = torch.add(y, self.sigma, r)
+        y = torch.add(r, self.sigma, y)
         td_loss = torch.mean((y-x)**2, dim=2)
         td_loss = torch.mean(td_loss, dim=1)
         td_loss = torch.mean(td_loss, dim=0)
