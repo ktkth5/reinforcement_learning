@@ -24,9 +24,9 @@ class ReplayMemory(nn.Module):
 
         for i, data in enumerate(self.memory):
             if i==0:
-                priority = data["priority"]
+                priority = data["priority"]+0.01
             else:
-                priority = torch.cat((priority, data["priority"]), 0)
+                priority = torch.cat((priority, data["priority"]+0.01), 0)
 
         sample_index = list(map(int,torch.multinomial(priority, batch_size)))
 

@@ -95,7 +95,7 @@ def train():
                 break
 
             # Optimize Learner model
-            if t%30==0 and len(A_agent.localbuffer)>80:
+            if t%30==0 and len(A_agent.localbuffer)>80 and len(RM)>=30:
                 error_batch = RM.priority_sample(30)
                 optimizer.zero_grad()
                 error_batch.backward(retain_graph=True)
@@ -103,7 +103,7 @@ def train():
                 for param in Learner.parameters():
                     param.grad.data.clamp_(-1, 1)
                 optimizer.step()
-                print("{0}\t{1}\tLoss:{2}\tTotal:{3}\tReward{4}".format(i_episode, t,
+                print("{0}\t{1}\tLoss:{2}\tTotal:{3}\tReward:{4}".format(i_episode, t,
                                                   float(error_batch),total_reward, reward, ))
             env.render()
 
