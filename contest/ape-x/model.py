@@ -34,5 +34,5 @@ class DQN(nn.Module):
             return action
 
         action = shaping(action_list)
-        return action
+        return F.relu(action)
 

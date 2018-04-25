@@ -29,7 +29,6 @@ class L2_loss(nn.Module):
         td_loss = torch.mean(td_loss, dim=1)
         td_loss = torch.mean(td_loss, dim=0)
         # print(float(td_loss))
-
         return td_loss/(2)
 
 

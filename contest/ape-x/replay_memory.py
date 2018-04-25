@@ -21,13 +21,15 @@ class ReplayMemory(nn.Module):
             pass
 
     def priority_sample(self, batch_size):
+        assert len(self.memory)>=batch_size
 
         for i, data in enumerate(self.memory):
+            if data["priority"].data[0]<0:
+                data["priority"]=Variable(torch.FloatTensor([0.01]))
             if i==0:
-                priority = data["priority"]+0.01
+                priority = data["priority"]
             else:
-                priority = torch.cat((priority, data["priority"]+0.01), 0)
-
+                priority = torch.cat((priority, data["priority"]), 0)
         sample_index = list(map(int,torch.multinomial(priority, batch_size)))
 
         for i, index in enumerate(sample_index):
@@ -43,6 +45,9 @@ class ReplayMemory(nn.Module):
         # print(sample_error_batch)
         # return sample_error_batch
         return error
+
+    def reset(self):
+        self.memory = []
 
     def __len__(self):
         return len(self.memory)

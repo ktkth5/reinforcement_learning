@@ -17,7 +17,7 @@ parser = argparse.ArgumentParser(description='Run Ape-X on Sonic')
 parser.add_argument("--seed", default=13, type=int)
 parser.add_argument("--epochs", default=10, type=int)
 parser.add_argument("--sigma", default=0.999, type=float)
-parser.add_argument("--localcapacity", default=500)
+parser.add_argument("--localcapacity", default=400)
 
 is_cuda = False
 if torch.cuda.is_available():
@@ -51,8 +51,8 @@ def train():
 
     optimizer = optim.SGD(Learner.parameters(), lr=0.01)
 
-    eps_threshold = 0.9
-    RM = ReplayMemory(500)
+    eps_threshold = 0.8
+    RM = ReplayMemory(400)
     A_agent = ActorAgent(Learner, args)
     print("Start Episodes")
     for i_episode in range(50000):
@@ -66,7 +66,9 @@ def train():
         for t in count():
             if t==0:
                 print("episode begin")
-            eps_threshold -= 0.000005
+            if t % 50 == 0:
+                eps_threshold = 0.8
+            eps_threshold -= 0.000017
             action_q = A_agent.act(state_var, eps_threshold)
             if is_cuda:
                 action_q = action_q.cpu()
@@ -89,6 +91,7 @@ def train():
             if len(A_agent.localbuffer)>10:
                 p, error = calc_priority_TDerror(Learner, ActorAgent,
                                                  criterion, A_agent, 10)
+                # print(p)
                 RM.push(p,error)
 
             if done:
