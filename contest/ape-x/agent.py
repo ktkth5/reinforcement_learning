@@ -67,7 +67,6 @@ class ActorAgent():
         self.args = args
 
         self.Learner = learner
-        self.Actor = DQN()
         if torch.cuda.is_available():
             self.Actor = self.Actor.cuda()
         self.copy_parameter()
@@ -75,10 +74,6 @@ class ActorAgent():
         self.capacity = args.localcapacity
 
         self.localbuffer = []
-        # self.expe = namedtuple("self.expe",
-        #                        ["reward","Qvalue","state"])
-
-        self.criterion = L2_loss(self.args.sigma)
 
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description="Agent test")

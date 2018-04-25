@@ -62,6 +62,7 @@ def train():
         current_state = get_screen(env)
         state = current_state - last_state
         state_var = torch.autograd.Variable(state)
+        total_reward = 0
         for t in count():
             if t==0:
                 print("episode begin")
@@ -74,7 +75,9 @@ def train():
                 _, action = action_q.data.max(2)
             action_numpy = action.squeeze(0).numpy()
             # print(list(action_numpy))
-            _, reward, done, _ = env.step(action_numpy)
+            for i in range(4):
+                _, reward, done, _  = env.step(action_numpy)
+                total_reward += reward
             last_state = current_state
             current_state = get_screen(env)
             state = current_state - last_state
@@ -100,8 +103,8 @@ def train():
                 for param in Learner.parameters():
                     param.grad.data.clamp_(-1, 1)
                 optimizer.step()
-                print("{0}\t{1}\t{2}\t{3}".format(i_episode, t,
-                                                  float(error_batch), reward))
+                print("{0}\t{1}\tLoss:{2}\tReward:{3}\tTotal{4}".format(i_episode, t,
+                                                  float(error_batch), reward, total_reward))
 
 
             env.render()
