@@ -25,7 +25,7 @@ def get_screen(env):
     return state
 
 def calc_priority_TDerror(Learner, Actor, criterion, A_agent, batch_size):
-    epsilon = 0.001
+    epsilon = 0.01
     expe = namedtuple("expe",
                       ["reward", "Qvalue", "state"])
 

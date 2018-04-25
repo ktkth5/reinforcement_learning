@@ -55,7 +55,7 @@ def train():
     RM = ReplayMemory(500)
     A_agent = ActorAgent(Learner, args)
     print("Start Episodes")
-    for i_episode in range(1000):
+    for i_episode in range(50000):
         env.reset()
         A_agent.reset(Learner, args)
         last_state = get_screen(env)
@@ -103,11 +103,13 @@ def train():
                 for param in Learner.parameters():
                     param.grad.data.clamp_(-1, 1)
                 optimizer.step()
-                print("{0}\t{1}\tLoss:{2}\tReward:{3}\tTotal{4}".format(i_episode, t,
-                                                  float(error_batch), reward, total_reward))
-
-
+                print("{0}\t{1}\tLoss:{2}\tTotal:{3}\tReward{4}".format(i_episode, t,
+                                                  float(error_batch),total_reward, reward, ))
             env.render()
+
+        with open("total_reward.txt", "a") as f:
+            f.write("{0}\t{1}".format(i_episode, total_reward))
+            f.write("\n")
 
 if __name__=="__main__":
     args = parser.parse_args()
