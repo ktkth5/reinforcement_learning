@@ -32,7 +32,7 @@ def calc_priority_TDerror(Learner, criterion, A_agent, batch_size):
     experience = A_agent.sample(batch_size)
     batch = expe(*zip(*experience))
     state_batch = torch.cat(batch.state)
-    Actor_qvalue_batch = torch.cat(batch.Qvalue, dim=0).view(batch_size, 12, 2)
+    Actor_qvalue_batch = torch.cat(batch.Qvalue, dim=0).view(batch_size, 2)
     reward_batch = Variable(torch.cat(batch.reward))
 
     Learner_qvalue = Learner(state_batch)

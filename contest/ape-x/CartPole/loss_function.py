@@ -20,16 +20,17 @@ class L2_loss(nn.Module):
         """
         y = Variable(y.data)
         batch_size = x.size()[0]
-        x = x.view(batch_size, 12, 2)
-        y = y.view(batch_size, 12, 2)
+        x = x.view(batch_size, 2)
+        y = y.view(batch_size, 2)
         r = r.unsqueeze(1)
         r = torch.cat([r,r],dim=1)
-        r = r.unsqueeze(1)
+        # r = r.unsqueeze(1)
+        # print(r.shape)
+        # print(y.shape)
 
         y = torch.add(r, self.sigma, y)
-        td_loss = torch.mean((y-x)**2, dim=2)
-        td_loss = torch.mean(td_loss, dim=1)
-        td_loss = torch.mean(td_loss, dim=0)
+        td_loss = torch.mean(torch.abs(y-x), dim=1)
+        # td_loss = torch.mean(td_loss, dim=1)
         # print(float(td_loss))
         return td_loss/(2)
 
@@ -39,7 +40,7 @@ if __name__=="__main__":
     d_state = torch.randn(1,3,40,40)
     state = torch.randn(1,3,40,40)
     reward = torch.autograd.Variable(torch.FloatTensor([0.1]))
-    target = torch.rand(1,12,2)
+    target = torch.rand(1,2)
     d_state_var = torch.autograd.Variable(d_state)
     state_var = torch.autograd.Variable(state)
     target_var = torch.autograd.Variable(target)

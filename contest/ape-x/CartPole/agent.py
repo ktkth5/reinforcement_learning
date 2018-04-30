@@ -41,8 +41,8 @@ class ActorAgent():
                 # print(type(output.data))
                 return action_q
             else:
-                output = numpy.random.rand(24)
-                output = torch.from_numpy(output).view(1,12, 2)
+                output = numpy.random.rand(2)
+                output = torch.from_numpy(output).view(1,2)
                 action_q_random = output.type(torch.FloatTensor)
                 return Variable(action_q_random)
 

@@ -1,6 +1,6 @@
 import argparse
-import retro
-from retro_contest.local import make
+import gym
+from gym import wrappers
 from itertools import count
 
 import torch
@@ -40,7 +40,8 @@ def train():
     # args = parser.parse_args()
     Learner = DQN()
 
-    env = make(game='SonicTheHedgehog-Genesis', state='LabyrinthZone.Act1')
+    env = gym.make('CartPole-v0')
+    # env = wrappers.Monitor(env, './tmp/cartpole-v0-1')
     # env = retro.make(game='Airstriker-Genesis', state='Level1')
 
     criterion = L2_loss(0.99)
@@ -64,21 +65,21 @@ def train():
         state_var = torch.autograd.Variable(state)
         total_reward = 0
         if i_episode % 50 == 0:
-            eps_threshold = 0.9
+            eps_threshold = 0
         for t in count():
             if t==0:
                 print("episode begin")
-            eps_threshold -= 0.000019
+            eps_threshold -= 0
             action_q = A_agent.act(state_var, eps_threshold)
             if is_cuda:
                 action_q = action_q.cpu()
-                _, action = action_q.data.max(2)
+                _, action = action_q.data.max(1)
             else:
-                _, action = action_q.data.max(2)
+                _, action = action_q.data.max(1)
             action_numpy = action.squeeze(0).numpy()
             # print(list(action_numpy))
-            for i in range(4):
-                _, reward, done, _  = env.step(action_numpy)
+            for i in range(1):
+                _, reward, done, _  = env.step(int(action_numpy))
                 total_reward += reward
             last_state = current_state
             current_state = get_screen(env)
@@ -88,18 +89,20 @@ def train():
             A_agent.add_to_buffer(reward, action_q, state_var)
 
             # ReplayMemoryに状態保存
-            if len(A_agent.localbuffer)>10:
+            if len(A_agent.localbuffer)>3:
                 p, error = calc_priority_TDerror(Learner,
-                                                 criterion, A_agent, 10)
+                                                 criterion, A_agent, 1)
                 # print(p)
                 RM.push(p,error)
 
             if done:
+                # print(t)
                 break
 
             # Optimize Learner model
-            if t%30==0 and len(A_agent.localbuffer)>80 and len(RM)>=30:
-                error_batch = RM.priority_sample(30)
+            if t%3==0 and len(A_agent.localbuffer)>3 and len(RM)>=3:
+                error_batch = RM.priority_sample(3)
+                #print(error_batch)
 
                 optimizer.zero_grad()
                 error_batch.backward(retain_graph=True)
