@@ -112,7 +112,7 @@ if use_cuda:
     target_net.cuda()
 
 optimizer = optim.RMSprop(policy_net.parameters())
-memory = ReplayMemory(10000)
+memory = ReplayMemory(7000)
 
 steps_done = 0
 
@@ -183,7 +183,7 @@ def main():
             _, action = torch.topk(action_per, 1, dim=1)
 
             # get next state
-            _, reward, done, _ = env.step(action.view(12).numpy())
+            _, reward, done, _ = env.step(action.view(12).cpu().numpy())
             average_reward.add(reward)
             reward = Tensor([reward])
 
@@ -196,6 +196,8 @@ def main():
 
             # store state
             memory.push(state, action_per, next_state, reward)
+            # if len(memory.memory)==10000:
+            #     print("NONOONONOONONONONOONONONONO")
             state = next_state
 
             optimize_model()

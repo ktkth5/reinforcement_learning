@@ -59,11 +59,11 @@ model = Policy()
 optimizer = optim.Adam(model.parameters(), lr=1e-2)
 
 def select_action(state):
-    print(state.shape)
+    # print(state.shape)
     state = state.transpose(2,0,1)
     state = torch.from_numpy(state)
     state = state.type(torch.FloatTensor)
-    print(type(state))
+    # print(type(state))
     state = Variable(state.unsqueeze(0))
     probs, state_value = model(state)
     m = Categorical(probs)
@@ -84,7 +84,8 @@ def finish_episode():
     rewards = (rewards - rewards.mean()) / (rewards.std() + np.finfo(np.float32).eps)
     for (log_prob, value), r in zip(saved_actions, rewards):
         reward = r - value.data[0]
-        policy_losses.append(-log_prob * reward)
+        # print(type(reward), type(log_prob.data))
+        policy_losses.append(-log_prob.data * reward)
         value_losses.append(F.smooth_l1_loss(value, Variable(torch.Tensor([r]))))
     optimizer.zero_grad()
     loss = torch.stack(policy_losses).sum() + torch.stack(value_losses).sum()
@@ -98,27 +99,33 @@ def main():
     running_reward = 10
     for i_episode in count(1):
         state = env.reset()
+        reward_xx = 0
         for t in range(10000):  # Don't infinite loop while learning
             action = select_action(state)
-            print(action)
-            action_numpy = action.data.numpy()
-            print(type(action_numpy))
+            # print(action)
+            action_numpy = np.array([action])
+            # print(type(action_numpy))
             state, reward, done, _ = env.step(action_numpy)
-            if args.render:
-                env.render()
+            # if args.render:
+            #     env.render()
+            # model.saved_actions.append(action)
+            reward_xx += reward
             model.rewards.append(reward)
             if done:
                 break
+            env.render()
 
+        print(reward_xx/10000)
         running_reward = running_reward * 0.99 + t * 0.01
         finish_episode()
         if i_episode % args.log_interval == 0:
             print('Episode {}\tLast length: {:5d}\tAverage length: {:.2f}'.format(
                 i_episode, t, running_reward))
-        if running_reward > env.spec.reward_threshold:
+        if running_reward > 1000:
             print("Solved! Running reward is now {} and "
                   "the last episode runs to {} time steps!".format(running_reward, t))
             break
+        env.render()
 
 
 if __name__ == '__main__':
