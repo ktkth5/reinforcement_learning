@@ -10,15 +10,18 @@ from replay_memory import ReplayMemory
 from loss_function import L2_loss
 from model import DQN
 
+use_cuda = torch.cuda.is_available()
+device = torch.device("cuda:0" if use_cuda else "cpu")
+
 class ActorAgent():
 
     def __init__(self, learner, args):
         self.args = args
 
         self.Learner = learner
-        self.Actor = DQN()
-        if torch.cuda.is_available():
-            self.Actor = self.Actor.cuda()
+        self.Actor = DQN().to(device)
+        # if torch.cuda.is_available():
+        #     self.Actor = self.Actor.cuda()
         self.copy_parameter()
         self.position = 0
         self.capacity = args.localcapacity
@@ -44,16 +47,18 @@ class ActorAgent():
                 output = numpy.random.rand(24)
                 output = torch.from_numpy(output).view(1,12, 2)
                 action_q_random = output.type(torch.FloatTensor)
-                return Variable(action_q_random)
+                action_q_random.requires_grad = True
+                # return Variable(action_q_random)
+                return action_q_random
 
     def add_to_buffer(self, reward, action_q, state):
-        expe = namedtuple("expe",
-                                ["reward","Qvalue","state"])
+        # expe = namedtuple("expe",
+        #                         ["reward","Qvalue","state"])
         if len(self.localbuffer)<self.capacity:
             self.localbuffer.append(None)
-        reward_torch = torch.FloatTensor([reward])
+        reward_torch = torch.tensor([reward], dtype=torch.float)
         self.localbuffer[self.position]= \
-            expe(reward_torch, action_q, state)
+            [reward_torch, action_q, state]
         self.position = (self.position + 1) % self.capacity
 
 

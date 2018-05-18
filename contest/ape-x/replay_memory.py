@@ -3,6 +3,8 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 
+use_cuda = torch.cuda.is_available()
+device = torch.device("cuda:0" if use_cuda else "cpu")
 
 # clear
 class ReplayMemory(nn.Module):
@@ -24,26 +26,31 @@ class ReplayMemory(nn.Module):
         assert len(self.memory)>=batch_size
 
         for i, data in enumerate(self.memory):
+            # print(data["priority"])
             if data["priority"].data[0]<0:
-                data["priority"]=Variable(torch.FloatTensor([0.01]))
+                data["priority"] = torch.tensor(0.01, dtype=torch.float)
             if i==0:
-                priority = data["priority"]
+                priority = data["priority"].unsqueeze(0)
             else:
-                priority = torch.cat((priority, data["priority"]), 0)
+                print("priority", priority.shape)
+                print("data[p]", data["priority"].unsqueeze(0).shape)
+                priority = torch.cat((priority, data["priority"].unsqueeze(0)))
         sample_index = list(map(int,torch.multinomial(priority, batch_size)))
-
+        # print(sample_index)
         for i, index in enumerate(sample_index):
             if i==0:
-                sample_error_batch = self.memory[index]["error"]
+                sample_error_batch = self.memory[index]["error"].unsqueeze(0)
                 error = self.memory[index]["error"]
-                self.memory[index]["priority"] = Variable(torch.FloatTensor([0.01]))
+                self.memory[index]["priority"] = torch.tensor(0.01, dtype=torch.float)
             else:
-                sample_error_batch = torch.cat((sample_error_batch, self.memory[index]["error"]))
-                self.memory[index]["priority"] = Variable(torch.FloatTensor([0.01]))
+                sample_error_batch = torch.cat((sample_error_batch,
+                                                self.memory[index]["error"].unsqueeze(0)))
+                self.memory[index]["priority"] = torch.tensor(0.01, dtype=torch.float)
                 error += self.memory[index]["error"]
 
         # print(sample_error_batch)
         # return sample_error_batch
+        # print(error.requires_grad)
         return error
 
     def reset(self):
@@ -56,7 +63,8 @@ class ReplayMemory(nn.Module):
 if __name__=="__main__":
     rm = ReplayMemory(6)
     for i in range(10):
-        x = torch.FloatTensor([random.randint(1,5)])
+        x = torch.tensor([random.randint(1,5)], dtype=torch.float)
         y = torch.FloatTensor([random.randint(5,10)])
         rm.push(x,y)
+
     print(rm.priority_sample(2))

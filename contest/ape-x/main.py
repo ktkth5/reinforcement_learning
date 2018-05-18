@@ -19,6 +19,10 @@ parser.add_argument("--epochs", default=10, type=int)
 parser.add_argument("--sigma", default=0.99, type=float)
 parser.add_argument("--localcapacity", default=400)
 
+use_cuda = torch.cuda.is_available()
+device = torch.device("cuda:0" if use_cuda else "cpu")
+
+
 is_cuda = False
 if torch.cuda.is_available():
     is_cuda = True
@@ -38,16 +42,17 @@ def main():
 def train():
     # global args
     # args = parser.parse_args()
-    Learner = DQN()
+    Learner = DQN().to(device)
 
     env = make(game='SonicTheHedgehog-Genesis', state='LabyrinthZone.Act1')
     # env = retro.make(game='Airstriker-Genesis', state='Level1')
 
-    criterion = L2_loss(0.99)
+    criterion = L2_loss(0.99).to(device)
 
     if is_cuda:
         Learner = Learner.cuda()
         criterion = criterion.cuda()
+
 
     optimizer = optim.SGD(Learner.parameters(), lr=0.01)
 
@@ -61,7 +66,8 @@ def train():
         last_state = get_screen(env)
         current_state = get_screen(env)
         state = current_state - last_state
-        state_var = torch.autograd.Variable(state)
+        # state_var = torch.autograd.Variable(state)
+        state_var = state.to(device)
         total_reward = 0
         if i_episode % 50 == 0:
             eps_threshold = 0.9
@@ -70,11 +76,16 @@ def train():
                 print("episode begin")
             eps_threshold -= 0.000019
             action_q = A_agent.act(state_var, eps_threshold)
+
+            """
             if is_cuda:
                 action_q = action_q.cpu()
                 _, action = action_q.data.max(2)
             else:
                 _, action = action_q.data.max(2)
+            """
+            _, action = action_q.data.max(2)
+
             action_numpy = action.squeeze(0).numpy()
             # print(list(action_numpy))
             for i in range(4):
@@ -83,7 +94,8 @@ def train():
             last_state = current_state
             current_state = get_screen(env)
             state = current_state - last_state
-            state_var = torch.autograd.Variable(state)
+            # state_var = torch.autograd.Variable(state)
+            state_var = state.to(device)
             # 行動語のstateを保存
             A_agent.add_to_buffer(reward, action_q, state_var)
 
@@ -91,7 +103,7 @@ def train():
             if len(A_agent.localbuffer)>10:
                 p, error = calc_priority_TDerror(Learner,
                                                  criterion, A_agent, 10)
-                # print(p)
+
                 RM.push(p,error)
 
             if done:
@@ -102,14 +114,15 @@ def train():
                 error_batch = RM.priority_sample(30)
 
                 optimizer.zero_grad()
-                error_batch.backward(retain_graph=True)
+                # error_batch.backward(retain_graph=True)
+                error_batch.backward()
                 optimizer.step()
                 for param in Learner.parameters():
                     param.grad.data.clamp_(-1, 1)
                 optimizer.step()
                 print("{0}\t{1}\tLoss:{2}\tTotal:{3}\tReward:{4}".format(i_episode, t,
                                                   float(error_batch),total_reward, reward, ))
-            env.render()
+            # env.render()
 
         with open("total_reward.txt", "a") as f:
             f.write("{0}\t{1}".format(i_episode, total_reward))
