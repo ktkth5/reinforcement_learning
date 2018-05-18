@@ -40,14 +40,15 @@ class ActorAgent():
             # action_q = self.Actor(state_var)
 
             if sample > eps_threshold:
-                action_q = self.Actor(state_var)
+                with torch.no_grad():
+                    action_q = self.Actor(state_var)
                 # print(type(output.data))
                 return action_q
             else:
                 output = numpy.random.rand(24)
                 output = torch.from_numpy(output).view(1,12, 2)
                 action_q_random = output.type(torch.FloatTensor)
-                action_q_random.requires_grad = True
+                action_q_random.requires_grad = False
                 # return Variable(action_q_random)
                 return action_q_random
 

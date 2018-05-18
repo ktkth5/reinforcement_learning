@@ -41,11 +41,11 @@ class ReplayMemory(nn.Module):
             if i==0:
                 sample_error_batch = self.memory[index]["error"].unsqueeze(0)
                 error = self.memory[index]["error"]
-                self.memory[index]["priority"] = torch.tensor(0.01, dtype=torch.float)
+                self.memory[index]["priority"] = torch.tensor(0., dtype=torch.float)
             else:
                 sample_error_batch = torch.cat((sample_error_batch,
                                                 self.memory[index]["error"].unsqueeze(0)))
-                self.memory[index]["priority"] = torch.tensor(0.01, dtype=torch.float)
+                self.memory[index]["priority"] = torch.tensor(0., dtype=torch.float)
                 error += self.memory[index]["error"]
 
         # print(sample_error_batch)
