@@ -133,13 +133,18 @@ class DQN(nn.Module):
         self.bn2 = nn.BatchNorm2d(32)
         self.conv3 = nn.Conv2d(32, 32, kernel_size=5, stride=2)
         self.bn3 = nn.BatchNorm2d(32)
-        self.head = nn.Linear(448, 2)
+        self.advantage = nn.Linear(448, 2)
+        self.value = nn.Linear(448,1)
 
     def forward(self, x):
         x = F.relu(self.bn1(self.conv1(x)))
         x = F.relu(self.bn2(self.conv2(x)))
         x = F.relu(self.bn3(self.conv3(x)))
-        return self.head(x.view(x.size(0), -1))
+
+        a = self.advantage(x.view(x.size(0), -1))
+        v = self.value(x.view(x.size(0), -1))
+
+        return v + (a - a.mean(1, keepdim=True).expand(a.size(0), 2))
 
 
 
@@ -250,3 +255,6 @@ def optimize_model(optimizer, policy_net, target_net, memory):
 
 if __name__=="__main__":
     main()
+    # a = torch.arange(20).view(10,2)
+    # v = torch.arange(10).view(10,1)
+    # v + (a - a.mean(1, keepdim=True).expand(a.size(0), 2))
