@@ -25,11 +25,9 @@ parser.add_argument("--target_update", default=10)
 parser.add_argument("--lr", default=2.0)
 parser.add_argument("--lr_decay", default=150)
 
-# if gpu is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 env = gym.make('CartPole-v0').unwrapped
 
-# This is based on the code from gym.
 screen_width = 600
 
 Transition = namedtuple('Transition',

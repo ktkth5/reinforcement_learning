@@ -25,11 +25,9 @@ parser.add_argument("--target_update", default=10)
 parser.add_argument("--lr", default=2.0)
 parser.add_argument("--lr_decay", default=150)
 
-# if gpu is to be used
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 env = gym.make('CartPole-v0').unwrapped
 
-# This is based on the code from gym.
 screen_width = 600
 
 Transition = namedtuple('Transition',
@@ -56,18 +54,15 @@ def main():
 
     for i_episode in range(num_episodes):
         scheduler.step()
-        # Initialize the environment and state
         env.reset()
         last_screen = get_screen()
         current_screen = get_screen()
         state = current_screen - last_screen
         for t in count():
-            # Select and perform an action
             action = select_action(state, policy_net, steps_done, i_episode)
             _, reward, done, _ = env.step(action.item())
             reward = torch.tensor([reward], device=device)
 
-            # Observe new state
             last_screen = current_screen
             current_screen = get_screen()
             if not done:
@@ -75,20 +70,17 @@ def main():
             else:
                 next_state = None
 
-            # Store the transition in memory
             memory.push(state, action, next_state, reward)
 
-            # Move to the next state
             state = next_state
 
-            # Perform one step of the optimization (on the target network)
             optimize_model(optimizer, policy_net, target_net, memory)
             if done:
                 episode_durations.append(t + 1)
                 plot_durations(episode_durations)
                 break
         steps_done += 5
-        # Update the target network
+
         if i_episode % args.target_update == 0:
             target_net.load_state_dict(policy_net.state_dict())
 
@@ -110,7 +102,6 @@ class ReplayMemory(object):
         self.position = 0
 
     def push(self, *args):
-        """Saves a transition."""
         if len(self.memory) < self.capacity:
             self.memory.append(None)
         self.memory[self.position] = Transition(*args)
@@ -146,7 +137,7 @@ class DQN(nn.Module):
 def get_cart_location():
     world_width = env.x_threshold * 2
     scale = screen_width / world_width
-    return int(env.state[0] * scale + screen_width / 2.0)  # MIDDLE OF CART
+    return int(env.state[0] * scale + screen_width / 2.0)
 
 
 def get_screen():
@@ -155,8 +146,8 @@ def get_screen():
                         T.ToTensor()])
 
     screen = env.render(mode='rgb_array').transpose(
-        (2, 0, 1))  # transpose into torch order (CHW)
-    # Strip off the top and bottom of the screen
+        (2, 0, 1))
+
     screen = screen[:, 160:320]
     view_width = 320
     cart_location = get_cart_location()
@@ -167,13 +158,10 @@ def get_screen():
     else:
         slice_range = slice(cart_location - view_width // 2,
                             cart_location + view_width // 2)
-    # Strip off the edges, so that we have a square image centered on a cart
+
     screen = screen[:, :, slice_range]
-    # Convert to float, rescare, convert to torch tensor
-    # (this doesn't require a copy)
     screen = np.ascontiguousarray(screen, dtype=np.float32) / 255
     screen = torch.from_numpy(screen)
-    # Resize, and add a batch dimension (BCHW)
     return resize(screen).unsqueeze(0).to(device)
 
 
@@ -201,24 +189,20 @@ def plot_durations(episode_durations):
     plt.xlabel('Episode')
     plt.ylabel('Duration')
     plt.plot(durations_t.numpy())
-    # Take 100 episode averages and plot them too
     if len(durations_t) >= 100:
         means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
         means = torch.cat((torch.zeros(99), means))
         plt.plot(means.numpy())
 
-    plt.pause(0.001)  # pause a bit so that plots are updated
+    plt.pause(0.001)
 
 
 def optimize_model(optimizer, policy_net, target_net, memory):
     if len(memory) < args.batch_size:
         return
     transitions = memory.sample(args.batch_size)
-    # Transpose the batch (see http://stackoverflow.com/a/19343/3343043 for
-    # detailed explanation).
     batch = Transition(*zip(*transitions))
 
-    # Compute a mask of non-final states and concatenate the batch elements
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
                                           batch.next_state)), device=device, dtype=torch.uint8)
     non_final_next_states = torch.cat([s for s in batch.next_state
@@ -227,20 +211,14 @@ def optimize_model(optimizer, policy_net, target_net, memory):
     action_batch = torch.cat(batch.action)
     reward_batch = torch.cat(batch.reward)
 
-    # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
-    # columns of actions taken
     state_action_values = policy_net(state_batch).gather(1, action_batch)
 
-    # Compute V(s_{t+1}) for all next states.
     next_state_values = torch.zeros(args.batch_size, device=device)
     next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
-    # Compute the expected Q values
     expected_state_action_values = (next_state_values * args.gamma) + reward_batch
 
-    # Compute Huber loss
     loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
 
-    # Optimize the model
     optimizer.zero_grad()
     loss.backward()
     for param in policy_net.parameters():

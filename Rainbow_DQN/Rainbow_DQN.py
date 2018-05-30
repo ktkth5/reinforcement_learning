@@ -1,3 +1,6 @@
+"""
+dqn + double + doueling + prioritized replay + multi-steps + noisy
+"""
 import argparse
 import gym
 import math
@@ -16,21 +19,23 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torchvision.transforms as T
 
-parser = argparse.ArgumentParser("DQN")
-parser.add_argument("-b", "--batch_size", default=32)
-parser.add_argument("-g", "--gamma", default=0.999)
-parser.add_argument("--eps_start", default=0.9, type=float)
-parser.add_argument("--eps_end", default=0.05, type=float)
-parser.add_argument("--eps_decay", default=100)
-parser.add_argument("--target_update", default=10)
-parser.add_argument("--lr", default=2.0)
-parser.add_argument("--lr_decay", default=150)
+from models import Rainbow_model
 
-# if gpu is to be used
+parser = argparse.ArgumentParser("DQN")
+parser.add_argument("-b", "--batch_size", default=32, type=int)
+parser.add_argument("-g", "--gamma", default=0.99, type=float)
+parser.add_argument("--eps_start", default=1.0, type=float)
+parser.add_argument("--eps_end", default=0.05, type=float)
+parser.add_argument("--eps_decay", default=int(1e6), type=int)
+parser.add_argument("--target_update", default=30)
+parser.add_argument("--lr", default=1e-4, type=float)
+parser.add_argument("--lr_decay", default=150)
+parser.add_argument("--val_update", default=1, type=int)
+parser.add_argument("--n_steps", default=3, type=int)
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 env = gym.make('CartPole-v0').unwrapped
 
-# This is based on the code from gym.
 screen_width = 600
 
 Transition = namedtuple('Transition',
@@ -41,34 +46,34 @@ def main():
     steps_done = 0
     args = parser.parse_args()
 
-    policy_net = DQN().to(device)
-    target_net = DQN().to(device)
+    policy_net = Rainbow_model().to(device)
+    target_net = Rainbow_model().to(device)
     target_net.load_state_dict(policy_net.state_dict())
     target_net.eval()
 
     optimizer = optim.RMSprop(policy_net.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer,
-                                               milestones=[500],
+                                               milestones=[int(1e4)],
                                                gamma=0.1)
     memory = ReplayMemory(10000)
 
-    num_episodes = 10000
+    num_episodes = int(1.1e6)
     episode_durations = []
-
+    val_episode_dureations = []
     for i_episode in range(num_episodes):
         scheduler.step()
-        # Initialize the environment and state
         env.reset()
         last_screen = get_screen()
         current_screen = get_screen()
         state = current_screen - last_screen
         for t in count():
-            # Select and perform an action
-            action, action_value = select_action(state, policy_net, steps_done, i_episode)
-            _, reward, done, _ = env.step(action.item())
+            reward = 0
+            for step in range(args.n_steps):
+                action, action_value = select_action(state, policy_net, steps_done, i_episode)
+                _, _reward, done, _ = env.step(action.item())
+                reward += _reward * (args.gamma**step)
             reward = torch.tensor([reward], device=device)
 
-            # Observe new state
             last_screen = current_screen
             current_screen = get_screen()
             if not done:
@@ -82,22 +87,37 @@ def main():
             # print("TD shape: ", abs_TD_error.shape)
             TD = calc_TD(next_state, policy_net, target_net, reward, action_value)
 
-            # Store the transition in memory
             memory.push(state, action, next_state, reward, TD)
 
-            # Move to the next state
             state = next_state
 
-            # Perform one step of the optimization (on the target network)
             optimize_model(optimizer, policy_net, target_net, memory)
             if done:
                 episode_durations.append(t + 1)
                 plot_durations(episode_durations)
                 break
-        steps_done += 5
-        # Update the target network
+            steps_done += 1
+
         if i_episode % args.target_update == 0:
             target_net.load_state_dict(policy_net.state_dict())
+
+        if i_episode % args.val_update == 0:
+            env.reset()
+            last_screen = get_screen()
+            current_screen = get_screen()
+            state = current_screen - last_screen
+            with torch.no_grad():
+                for t in count():
+                    action = select_action(state, target_net, args.eps_decay * 10, 0, val=True)
+                    _, reward, done, _ = env.step(action.item())
+                    last_screen = current_screen
+                    current_screen = get_screen()
+                    state = current_screen - last_screen
+                    if done:
+                        val_episode_dureations.append(t+1)
+                        plot_durations(val_episode_dureations, number=3)
+                        break
+
 
     print('Complete')
     env.render()
@@ -108,7 +128,6 @@ def main():
     return
 
 
-
 class ReplayMemory(object):
 
     def __init__(self, capacity):
@@ -117,7 +136,6 @@ class ReplayMemory(object):
         self.position = 0
 
     def push(self, *args):
-        """Saves a transition."""
         if len(self.memory) < self.capacity:
             self.memory.append(None)
         self.memory[self.position] = Transition(*args)
@@ -166,7 +184,7 @@ class DQN(nn.Module):
 def get_cart_location():
     world_width = env.x_threshold * 2
     scale = screen_width / world_width
-    return int(env.state[0] * scale + screen_width / 2.0)  # MIDDLE OF CART
+    return int(env.state[0] * scale + screen_width / 2.0)
 
 
 def get_screen():
@@ -175,8 +193,7 @@ def get_screen():
                         T.ToTensor()])
 
     screen = env.render(mode='rgb_array').transpose(
-        (2, 0, 1))  # transpose into torch order (CHW)
-    # Strip off the top and bottom of the screen
+        (2, 0, 1))
     screen = screen[:, 160:320]
     view_width = 320
     cart_location = get_cart_location()
@@ -187,13 +204,12 @@ def get_screen():
     else:
         slice_range = slice(cart_location - view_width // 2,
                             cart_location + view_width // 2)
-    # Strip off the edges, so that we have a square image centered on a cart
+
     screen = screen[:, :, slice_range]
-    # Convert to float, rescare, convert to torch tensor
-    # (this doesn't require a copy)
+
     screen = np.ascontiguousarray(screen, dtype=np.float32) / 255
     screen = torch.from_numpy(screen)
-    # Resize, and add a batch dimension (BCHW)
+
     return resize(screen).unsqueeze(0).to(device)
 
 
@@ -201,7 +217,7 @@ def calc_TD(next_state, policy_net, target_net, reward, action_value):
     with torch.no_grad():
         try:
             action_index = policy_net(next_state).max(1)[1]
-            target = reward + (args.gamma * target_net(next_state)[:, action_index])
+            target = reward + ((args.gamma**args.n_steps) * target_net(next_state)[:, action_index])
         except:
             target = reward.expand(1,1)
         TD = F.smooth_l1_loss(action_value.max(1)[0].unsqueeze(1), target)
@@ -209,12 +225,16 @@ def calc_TD(next_state, policy_net, target_net, reward, action_value):
 
 
 
-def select_action(state, policy_net, steps_done, i_episode):
+def select_action(state, policy_net, steps_done, i_episode, val=False):
     sample = random.random()
     eps_threshold = args.eps_end + (args.eps_start - args.eps_end) * \
         math.exp(-1. * steps_done / args.eps_decay)
+    # eps_threshold = args.eps_start - ((args.eps_start-args.eps_end)/args.eps_decay)*i_episode
     # eps_threshold = 0.5 * (1 / (i_episode +1))
     # _steps_done = steps_done + 1
+    if val:
+        with torch.no_grad():
+            return policy_net(state).max(1)[1].view(1, 1)
 
     with torch.no_grad():
         action_value = policy_net(state)
@@ -226,33 +246,29 @@ def select_action(state, policy_net, steps_done, i_episode):
             return torch.tensor([[random.randrange(2)]], device=device, dtype=torch.long),action_value
 
 
-def plot_durations(episode_durations):
-    plt.figure(2)
+def plot_durations(episode_durations, number=2):
+    plt.figure(number)
     plt.clf()
     durations_t = torch.tensor(episode_durations, dtype=torch.float)
     plt.title('Training...')
     plt.xlabel('Episode')
     plt.ylabel('Duration')
     plt.plot(durations_t.numpy())
-    # Take 100 episode averages and plot them too
+
     if len(durations_t) >= 100:
         means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
         means = torch.cat((torch.zeros(99), means))
         plt.plot(means.numpy())
 
-    plt.pause(0.001)  # pause a bit so that plots are updated
+    plt.pause(0.001)
 
 
 def optimize_model(optimizer, policy_net, target_net, memory):
     if len(memory) < args.batch_size:
         return
-    # transitions = memory.sample(args.batch_size)
     transitions = memory.prioritized_samle(args.batch_size)
-    # Transpose the batch (see http://stackoverflow.com/a/19343/3343043 for
-    # detailed explanation).
     batch = Transition(*zip(*transitions))
 
-    # Compute a mask of non-final states and concatenate the batch elements
     non_final_mask = torch.tensor(tuple(map(lambda s: s is not None,
                                           batch.next_state)), device=device, dtype=torch.uint8)
     non_final_next_states = torch.cat([s for s in batch.next_state
@@ -261,22 +277,16 @@ def optimize_model(optimizer, policy_net, target_net, memory):
     action_batch = torch.cat(batch.action)
     reward_batch = torch.cat(batch.reward)
     priority_batch = torch.cat(batch.TD)
-    print(priority_batch)
+    # print(priority_batch)
 
-    # Compute Q(s_t, a) - the model computes Q(s_t), then we select the
-    # columns of actions taken
     state_action_values = policy_net(state_batch).gather(1, action_batch)
 
-    # Compute V(s_{t+1}) for all next states.
     next_state_values = torch.zeros(args.batch_size, device=device)
     next_state_values[non_final_mask] = target_net(non_final_next_states).max(1)[0].detach()
-    # Compute the expected Q values
-    expected_state_action_values = (next_state_values * args.gamma) + reward_batch
+    expected_state_action_values = (next_state_values * (args.gamma**args.n_steps)) + reward_batch
 
-    # Compute Huber loss
     loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))
 
-    # Optimize the model
     optimizer.zero_grad()
     loss.backward()
     for param in policy_net.parameters():
