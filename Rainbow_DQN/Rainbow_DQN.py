@@ -9,6 +9,7 @@ import math
 import random
 import numpy as np
 import matplotlib
+matplotlib.use("agg")
 import matplotlib.pyplot as plt
 from collections import namedtuple
 from itertools import count
@@ -24,15 +25,15 @@ import torchvision.transforms as T
 from models import Rainbow_model, Dueling_DQN
 
 parser = argparse.ArgumentParser("DQN")
-parser.add_argument("-b", "--batch_size", default=32, type=int)
+parser.add_argument("-b", "--batch_size", default=128, type=int)
 parser.add_argument("-g", "--gamma", default=0.99, type=float)
 parser.add_argument("--eps_start", default=1.0, type=float)
-parser.add_argument("--eps_end", default=0.05, type=float)
-parser.add_argument("--eps_decay", default=int(1e6), type=int)
+parser.add_argument("--eps_end", default=0.01, type=float)
+parser.add_argument("--eps_decay", default=int(1.5e6), type=int)
 parser.add_argument("--target_update", default=30)
 parser.add_argument("--lr", default=1e-4, type=float)
 parser.add_argument("--lr_decay", default=150)
-parser.add_argument("--val_update", default=1, type=int)
+parser.add_argument("--val_update", default=50, type=int)
 parser.add_argument("--n_steps", default=3, type=int)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -55,11 +56,11 @@ def main():
 
     optimizer = optim.RMSprop(policy_net.parameters(), lr=args.lr)
     scheduler = optim.lr_scheduler.MultiStepLR(optimizer,
-                                               milestones=[int(1e4)],
+                                               milestones=[int(1e7)],
                                                gamma=0.1)
     memory = ReplayMemory(10000)
 
-    num_episodes = int(1.1e6)
+    num_episodes = int(2e6)
     episode_durations = []
     val_episode_dureations = []
     for i_episode in range(num_episodes):
@@ -82,6 +83,8 @@ def main():
 
                 if done:
                     break
+            if t>200:
+                done = True
 
             reward = torch.tensor([reward], device=device)
 
@@ -128,6 +131,11 @@ def main():
                         val_episode_dureations.append(t+1)
                         plot_durations(val_episode_dureations, number=3)
                         break
+        eps_threshold = args.eps_end + (args.eps_start - args.eps_end) * \
+                        math.exp(-1. * steps_done / args.eps_decay)
+        print("{0}\tscore: {1}\tepsilon: {2}".format(i_episode, val_episode_dureations[-1],
+                                                     eps_threshold
+                                                     ))
 
 
     print('Complete')
@@ -251,10 +259,10 @@ def select_action(state, policy_net, steps_done, i_episode, val=False):
     with torch.no_grad():
         action_value = policy_net(state)
         if sample > eps_threshold:
-            print(eps_threshold, "this")
+            # print(eps_threshold, "this")
             return action_value.max(1)[1].view(1,1), action_value
         else:
-            print(eps_threshold)
+            # print(eps_threshold)
             return torch.tensor([[random.randrange(2)]], device=device, dtype=torch.long),action_value
 
 
@@ -271,7 +279,8 @@ def plot_durations(episode_durations, number=2):
         means = durations_t.unfold(0, 100, 1).mean(1).view(-1)
         means = torch.cat((torch.zeros(99), means))
         plt.plot(means.numpy())
-
+    name = "log_{0}.png".format(number)
+    plt.savefig(name)
     plt.pause(0.001)
 
 
