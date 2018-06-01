@@ -1,5 +1,7 @@
 """
-dqn + double + doueling + prioritized replay + multi-steps + noisy
+dqn + double + doueling + prioritized replay + multi-steps +
+
+n-stepのところが際どいので明日以降修正する
 """
 import argparse
 import gym
@@ -19,7 +21,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torchvision.transforms as T
 
-from models import Rainbow_model
+from models import Rainbow_model, Dueling_DQN
 
 parser = argparse.ArgumentParser("DQN")
 parser.add_argument("-b", "--batch_size", default=32, type=int)
@@ -46,8 +48,8 @@ def main():
     steps_done = 0
     args = parser.parse_args()
 
-    policy_net = Rainbow_model().to(device)
-    target_net = Rainbow_model().to(device)
+    policy_net = Dueling_DQN().to(device)
+    target_net = Dueling_DQN().to(device)
     target_net.load_state_dict(policy_net.state_dict())
     target_net.eval()
 
@@ -63,19 +65,28 @@ def main():
     for i_episode in range(num_episodes):
         scheduler.step()
         env.reset()
-        last_screen = get_screen()
-        current_screen = get_screen()
-        state = current_screen - last_screen
+        # last_screen = get_screen()
+        # current_screen = get_screen()
+        # state = current_screen - last_screen
         for t in count():
             reward = 0
             for step in range(args.n_steps):
+                t += 1
+                last_screen = get_screen()
+                current_screen = get_screen()
+                state = current_screen - last_screen
+
                 action, action_value = select_action(state, policy_net, steps_done, i_episode)
                 _, _reward, done, _ = env.step(action.item())
                 reward += _reward * (args.gamma**step)
+
+                if done:
+                    break
+
             reward = torch.tensor([reward], device=device)
 
-            last_screen = current_screen
-            current_screen = get_screen()
+            # last_screen = current_screen
+            # current_screen = get_screen()
             if not done:
                 next_state = current_screen - last_screen
             else:
@@ -108,7 +119,7 @@ def main():
             state = current_screen - last_screen
             with torch.no_grad():
                 for t in count():
-                    action = select_action(state, target_net, args.eps_decay * 10, 0, val=True)
+                    action, _ = select_action(state, target_net, args.eps_decay * 10, 0, val=True)
                     _, reward, done, _ = env.step(action.item())
                     last_screen = current_screen
                     current_screen = get_screen()
@@ -234,7 +245,8 @@ def select_action(state, policy_net, steps_done, i_episode, val=False):
     # _steps_done = steps_done + 1
     if val:
         with torch.no_grad():
-            return policy_net(state).max(1)[1].view(1, 1)
+            action_value = policy_net(state)
+            return action_value.max(1)[1].view(1, 1), action_value
 
     with torch.no_grad():
         action_value = policy_net(state)
